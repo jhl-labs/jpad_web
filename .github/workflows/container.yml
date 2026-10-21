@@ -3,6 +3,8 @@ name: Container
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - README.md
   workflow_dispatch:
 
 permissions:
@@ -34,14 +36,14 @@ jobs:
           import pathlib, re, subprocess
           files = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
           roots = {'src', 'runtime', 'prisma', 'public'}
-          exact = {'Dockerfile', '.dockerignore', '.gitignore', 'package.json', 'bun.lock', 'next.config.mjs', 'postcss.config.mjs', 'prisma.config.js', 'LICENSE', 'NOTICE', '.github/workflows/container.yml'}
+          exact = {'README.md', 'Dockerfile', '.dockerignore', '.gitignore', 'package.json', 'bun.lock', 'next.config.mjs', 'postcss.config.mjs', 'prisma.config.js', 'LICENSE', 'NOTICE', '.github/workflows/container.yml'}
           for name in filter(None, files):
               p = pathlib.PurePosixPath(name)
               assert name in exact or p.parts[0] in roots, name
               assert not any(re.search(r'(?i)^(__tests__|__mocks__|\.claude|\.codex|node_modules)$', part) for part in p.parts), name
-              assert p.suffix.lower() not in {'.md', '.map', '.ts', '.tsx', '.pem', '.key', '.crt'}, name
+              assert name == 'README.md' or p.suffix.lower() not in {'.md', '.map', '.ts', '.tsx', '.pem', '.key', '.crt'}, name
               assert not re.search(r'(?i)(?:^|/)(?:AGENTS|CLAUDE)(?:\.|$)|\.(?:test|spec)\.', name), name
-              if p.suffix in {'.js', '.mjs', '.json', '.prisma', '.sql', '.css', '.svg'}:
+              if p.suffix in {'.js', '.mjs', '.json', '.prisma', '.sql', '.css', '.svg', '.md'}:
                   content = pathlib.Path(name).read_text()
                   assert not re.search(r'/[h]ome/|BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY', content), name
           PY
