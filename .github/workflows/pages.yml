@@ -1,0 +1,146 @@
+name: Publish project showcase
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - site/**
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-pages
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.repository == 'jhl-labs/jpad_web' && github.ref == 'refs/heads/main'
+    runs-on: jhl-space
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Verify static publication boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from html.parser import HTMLParser
+          import re
+          root = Path('site')
+          expected = {'index.html', 'styles.css', 'app.js', 'assets/icon.svg', 'assets/editor.png', 'assets/database.png', 'assets/graph.png'}
+          actual = {str(p.relative_to(root)) for p in root.rglob('*') if p.is_file()}
+          assert actual == expected, actual ^ expected
+          class Document(HTMLParser):
+              def handle_comment(self, data): raise AssertionError('HTML comments are excluded')
+              def handle_starttag(self, tag, attrs):
+                  a = dict(attrs)
+                  for name in ['src', 'href']:
+                      value = a.get(name, '')
+                      if value and not value.startswith(('https://', '#')):
+                          assert (root / value.split('#')[0]).is_file(), value
+                  if tag == 'img': assert 'alt' in a
+                  if tag == 'script': assert a.get('src') == 'app.js'
+          document = Document()
+          document.feed((root / 'index.html').read_text())
+          for p in root.rglob('*'):
+              if p.suffix in {'.html', '.css', '.js', '.svg'}:
+                  value = p.read_text()
+                  assert not re.search(r'/[h]ome/|BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY|\b(?:gh[pousr]_[A-Za-z0-9]{30,}|dckr_pat_[A-Za-z0-9_-]{20,}|AKIA[A-Z0-9]{16})', value), p
+          PY
+
+      - name: Verify desktop and mobile presentation
+        shell: bash
+        env:
+          BROWSER_IMAGE: node:24-bookworm-slim@sha256:91acba91b842bec0bf7ea6f5e09c644c7ccad72c4996ed9616d861d1c7cd60d4
+        run: |
+          set -euo pipefail
+          browser="jpad-pages-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          work="$(mktemp -d)"
+          cleanup() {
+            docker rm -f "$browser" >/dev/null 2>&1 || true
+            rm -rf "$work"
+          }
+          trap cleanup EXIT
+          cat > "$work/preview.mjs" <<'JS'
+          import {chromium} from 'playwright';
+          import {createServer} from 'node:http';
+          import {readFile,mkdir,writeFile} from 'node:fs/promises';
+          import {resolve,extname} from 'node:path';
+          import assert from 'node:assert/strict';
+          const root=resolve('/work/site');
+          const mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml','.png':'image/png'};
+          const server=createServer(async(req,res)=>{try{let p=new URL(req.url,'http://localhost').pathname;if(!p.startsWith('/jpad_web/')){res.writeHead(404).end();return}p=p.slice('/jpad_web/'.length)||'index.html';const file=resolve(root,decodeURIComponent(p));if(!file.startsWith(root+'/'))throw Error('path');const body=await readFile(file);res.writeHead(200,{'Content-Type':mime[extname(file)]||'application/octet-stream'}).end(body)}catch{res.writeHead(404).end()}});
+          await new Promise(r=>server.listen(8080,'127.0.0.1',r));
+          const browser=await chromium.launch({args:['--no-sandbox']});
+          await mkdir('/work/output',{recursive:true});
+          const errors=[];
+          try{
+            for(const [name,width,height] of [['desktop',1440,1050],['mobile',390,844]]){
+              const context=await browser.newContext({viewport:{width,height},deviceScaleFactor:1,locale:'ko-KR',colorScheme:'light',reducedMotion:'reduce'});
+              const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+              await page.goto('http://127.0.0.1:8080/jpad_web/',{waitUntil:'networkidle'});
+              assert.match(await page.title(),/JPAD/);
+              await page.locator('img').evaluateAll(images=>Promise.all(images.map(img=>{img.loading='eager';return img.decode()})));
+              const tabs=page.getByRole('tab');assert.equal(await tabs.count(),3);
+              for(let i=0;i<3;i++){const tab=tabs.nth(i);await tab.click();assert.equal(await tab.getAttribute('aria-selected'),'true');const panel=page.locator('#'+await tab.getAttribute('aria-controls'));assert(await panel.isVisible());assert((await panel.locator('img').evaluate(img=>img.naturalWidth))>0)}
+              await tabs.nth(0).focus();await page.keyboard.press('ArrowRight');assert.equal(await tabs.nth(1).getAttribute('aria-selected'),'true');
+              await tabs.nth(0).click();
+              if(name==='mobile'){const menu=page.getByRole('button',{name:'메뉴',exact:true});await menu.click();assert.equal(await menu.getAttribute('aria-expanded'),'true');await page.keyboard.press('Escape');assert.equal(await menu.getAttribute('aria-expanded'),'false')}
+              assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name}: horizontal overflow`);
+              assert.equal(await page.locator('#license a[href$="/LICENSE"]').count(),1);
+              await page.evaluate(()=>scrollTo(0,0));
+              await page.screenshot({path:`/work/output/${name}.png`,animations:'disabled'});
+              await page.screenshot({path:`/work/output/${name}-full.png`,fullPage:true,animations:'disabled'});
+              await context.close();
+            }
+            assert.deepEqual(errors,[]);
+            await writeFile('/work/output/verification.json',JSON.stringify({viewports:[1440,390],tabs:true,keyboard:true,mobile_menu:true,images:true,no_overflow:true,console_errors:errors.length},null,2));
+          }finally{await browser.close();await new Promise(r=>server.close(r))}
+          JS
+          docker create --name "$browser" --init --shm-size=1g --workdir /work "$BROWSER_IMAGE" sh -c 'npm install --prefix /work --no-save --ignore-scripts --no-audit --no-fund playwright@1.63.0 && node /work/node_modules/playwright/cli.js install --with-deps --only-shell chromium && node --check /work/site/app.js && node /work/preview.mjs' >/dev/null
+          docker cp "$work/preview.mjs" "$browser:/work/preview.mjs"
+          docker cp site "$browser:/work/site"
+          status=0
+          docker start -a "$browser" || status=$?
+          mkdir -p "$RUNNER_TEMP/showcase-preview"
+          docker cp "$browser:/work/output/." "$RUNNER_TEMP/showcase-preview/" || true
+          exit "$status"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: showcase-preview
+          path: ${{ runner.temp }}/showcase-preview/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b
+
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
+        with:
+          path: site
+
+  deploy:
+    needs: verify
+    runs-on: jhl-space
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy project showcase
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
