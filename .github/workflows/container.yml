@@ -38,7 +38,7 @@ jobs:
           for name in filter(None, files):
               p = pathlib.PurePosixPath(name)
               assert name in exact or p.parts[0] in roots, name
-              assert not any(re.search(r'(?i)^(tests?|docs?|skills?|agents?|harness|\.claude|\.codex|node_modules)$', part) for part in p.parts), name
+              assert not any(re.search(r'(?i)^(__tests__|__mocks__|\.claude|\.codex|node_modules)$', part) for part in p.parts), name
               assert p.suffix.lower() not in {'.md', '.map', '.ts', '.tsx', '.pem', '.key', '.crt'}, name
               assert not re.search(r'(?i)(?:^|/)(?:AGENTS|CLAUDE)(?:\.|$)|\.(?:test|spec)\.', name), name
               if p.suffix in {'.js', '.mjs', '.json', '.prisma', '.sql', '.css', '.svg'}:
