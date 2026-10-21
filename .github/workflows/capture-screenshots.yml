@@ -2,6 +2,11 @@ name: Capture project screenshots
 
 on:
   workflow_dispatch:
+    inputs:
+      image_digest:
+        description: Verified GHCR image digest (sha256 followed by 64 hex characters)
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -12,18 +17,14 @@ jobs:
     runs-on: jhl-space
     timeout-minutes: 35
     steps:
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Capture isolated demo workspace
         shell: bash
         env:
-          APP_IMAGE: docker.io/declue/jpad@sha256:138dad1379ad16192d448768ed0236192d793350fecdfc12293a3078d9eb50b9
+          APP_IMAGE: ghcr.io/jhl-labs/jpad_web@${{ inputs.image_digest }}
           BROWSER_IMAGE: node:24-bookworm-slim@sha256:91acba91b842bec0bf7ea6f5e09c644c7ccad72c4996ed9616d861d1c7cd60d4
         run: |
           set -euo pipefail
+          [[ "$APP_IMAGE" =~ ^ghcr\.io/jhl-labs/jpad_web@sha256:[0-9a-f]{64}$ ]]
           prefix="jpad-capture-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           network="${prefix}-net"
           database="${prefix}-db"
