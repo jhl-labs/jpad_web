@@ -1,0 +1,121 @@
+name: Capture project screenshots
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    if: github.repository == 'jhl-labs/jpad_web' && github.ref == 'refs/heads/main'
+    runs-on: jhl-space
+    timeout-minutes: 35
+    steps:
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Capture isolated demo workspace
+        shell: bash
+        env:
+          APP_IMAGE: docker.io/declue/jpad@sha256:138dad1379ad16192d448768ed0236192d793350fecdfc12293a3078d9eb50b9
+          BROWSER_IMAGE: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+        run: |
+          set -euo pipefail
+          prefix="jpad-capture-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          network="${prefix}-net"
+          database="${prefix}-db"
+          redis="${prefix}-redis"
+          app="${prefix}-app"
+          browser="${prefix}-browser"
+          work="$(mktemp -d)"
+          output="$RUNNER_TEMP/product-screenshots"
+          cleanup() {
+            docker rm -f "$browser" "$app" "$database" "$redis" >/dev/null 2>&1 || true
+            docker network rm "$network" >/dev/null 2>&1 || true
+            rm -rf "$work"
+          }
+          trap cleanup EXIT
+          docker network create "$network" >/dev/null
+          db_password="$(openssl rand -hex 24)"
+          demo_password="Demo!$(openssl rand -hex 16)Aa1"
+          printf 'POSTGRES_PASSWORD=%s\nPOSTGRES_USER=jpad\nPOSTGRES_DB=jpad\n' "$db_password" > "$work/database.env"
+          docker run -d --name "$database" --network "$network" --env-file "$work/database.env" postgres:17-alpine >/dev/null
+          docker run -d --name "$redis" --network "$network" redis:7-alpine >/dev/null
+          printf 'DATABASE_URL=postgresql://jpad:%s@%s:5432/jpad\nREDIS_URL=redis://%s:6379\nNEXTAUTH_URL=http://jpad-demo:3000\nNEXTAUTH_SECRET=%s\nAPP_ENCRYPTION_KEY=%s\nWS_SECRET=%s\nWS_URL=ws://jpad-demo:1234\nJPAD_AUTO_SEED=1\nPLATFORM_ADMIN_EMAILS=demo@jpad.example\nSEED_ADMIN_PASSWORD=%s\nAUTH_ALLOW_CREDENTIALS_LOGIN=1\nDISABLE_RATE_LIMITS=1\n' "$db_password" "$database" "$redis" "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$demo_password" > "$work/app.env"
+          printf 'DEMO_PASSWORD=%s\n' "$demo_password" > "$work/browser.env"
+          docker run -d --name "$app" --network "$network" --network-alias jpad-demo --env-file "$work/app.env" "$APP_IMAGE" >/dev/null
+          ready=false
+          for attempt in $(seq 1 90); do
+            if docker exec "$app" /usr/local/bin/bun -e 'const r=await fetch("http://localhost:3000/api/health");if(!r.ok)process.exit(1)' >/dev/null 2>&1; then ready=true; break; fi
+            sleep 3
+          done
+          test "$ready" = true
+          cat > "$work/capture.mjs" <<'JS'
+          import { chromium } from 'playwright';
+          import { mkdir, writeFile } from 'node:fs/promises';
+          const browser = await chromium.launch({args:['--no-sandbox']});
+          const context = await browser.newContext({viewport:{width:1440,height:960},deviceScaleFactor:1,colorScheme:'light',locale:'ko-KR',timezoneId:'Asia/Seoul',baseURL:'http://jpad-demo:3000'});
+          await context.addInitScript(() => {localStorage.setItem('theme','light');localStorage.setItem('jpad-theme','light')});
+          const page = await context.newPage();
+          await mkdir('/work/output',{recursive:true});
+          async function api(method,url,data){const response=await page.request.fetch(url,{method,data,headers:{Origin:'http://jpad-demo:3000'}});if(!response.ok())throw new Error(`${method} ${url}: ${response.status()}`);return response.json()}
+          try {
+            await page.goto('/login');
+            await page.getByLabel('이메일').fill('demo@jpad.example');
+            await page.getByLabel('비밀번호').fill(process.env.DEMO_PASSWORD);
+            await page.getByRole('button',{name:'로그인',exact:true}).click();
+            await page.waitForURL('**/workspace**',{timeout:60000});
+            const workspace=await api('POST','/api/workspaces',{name:'Product Studio',description:'소개 페이지 촬영을 위한 가상 샘플 워크스페이스'});
+            const documents=[];
+            for(const title of ['제품 런칭 플레이북','팀의 작업 방식','사용자 리서치','브랜드 가이드','릴리스 체크리스트','아이디어 노트','제품 로드맵'])documents.push(await api('POST','/api/pages',{workspaceId:workspace.id,title}));
+            const content=[
+              '## 좋은 아이디어를, 함께 완성하는 곳',
+              '생각을 적고, 문서를 연결하고, 팀의 다음 행동으로 이어갑니다. 이 문서는 JPAD 소개를 위한 가상 샘플입니다.',
+              '> 함께 만드는 제품의 방향과 결정, 다음 할 일을 한 페이지에 모읍니다.',
+              '## 이번 주에 함께 만들 것',
+              '- [x] 새로운 워크스페이스의 방향 정하기\n- [x] 사용자 리서치와 인사이트 연결하기\n- [ ] 제품 소개 페이지 다듬기\n- [ ] 출시 전 마지막 피드백 나누기',
+              '## 연결된 생각, 선명해지는 맥락',
+              '[[사용자 리서치]]에서 발견한 문제를 [[제품 로드맵]]에 담고, [[브랜드 가이드]]를 기준으로 경험을 다듬습니다.',
+              '| 작업 원칙 | 함께 지킬 약속 |\n| --- | --- |\n| 작은 단위로 기록하기 | 결론과 다음 행동을 명확하게 |\n| 맥락을 연결하기 | 관련 문서와 결정의 이유를 함께 |\n| 열린 피드백 | 초안부터 함께 읽고 개선하기 |',
+              '## 다음 단계',
+              '[[릴리스 체크리스트]]를 확인하고, 새로운 제안은 [[아이디어 노트]]에 남겨 주세요.'
+            ].join('\n\n');
+            await api('PUT',`/api/pages/${documents[0].id}/content`,{content});
+            for(let i=1;i<documents.length-1;i++)await api('PUT',`/api/pages/${documents[i].id}/content`,{content:`## 함께 쌓아가는 팀의 지식\n\n이 문서는 소개 페이지 촬영용 가상 샘플입니다.\n\n[[${documents[0].title}]]와 [[${documents[(i+1)%(documents.length-1)].title}]]를 함께 읽으며 다음 결정을 준비합니다.\n\n- 발견한 내용을 짧게 정리하기\n- 관련 자료와 생각을 연결하기\n- 다음 행동으로 이어가기`});
+            const db=await api('POST','/api/databases',{pageId:documents[6].id,title:'제품 로드맵',properties:[{id:'status',name:'상태',type:'select',options:[{id:'planned',label:'예정',color:'#94a3b8'},{id:'doing',label:'진행 중',color:'#3b82f6'},{id:'done',label:'완료',color:'#22c55e'}]},{id:'area',name:'영역',type:'select',options:[{id:'product',label:'제품',color:'#8b5cf6'},{id:'design',label:'디자인',color:'#f59e0b'},{id:'content',label:'콘텐츠',color:'#06b6d4'}]},{id:'owner',name:'담당',type:'text'},{id:'due',name:'목표일',type:'date'}]});
+            for(const [title,status,area,owner,due] of [['첫 화면의 작성 경험 다듬기','done','design','디자인 팀','2026-10-20'],['사용자 인터뷰 인사이트 정리','done','product','제품 팀','2026-10-21'],['프로젝트 위키 템플릿 만들기','doing','content','콘텐츠 팀','2026-10-23'],['협업 피드백 흐름 개선','doing','product','제품 팀','2026-10-25'],['브랜드 가이드 문서 연결','doing','design','디자인 팀','2026-10-26'],['도움말과 시작 가이드 작성','planned','content','콘텐츠 팀','2026-10-28'],['공개 소개 페이지 최종 점검','planned','design','디자인 팀','2026-10-29'],['다음 릴리스 계획 공유','planned','product','제품 팀','2026-10-30']])await api('POST',`/api/databases/${db.id}/rows`,{title,values:{status,area,owner,due}});
+            await api('POST',`/api/databases/${db.id}/views`,{name:'보드',type:'board',config:{groupBy:'status'}});
+            await page.goto(`/workspace/${workspace.id}/page/${documents[0].id}`);
+            await page.getByText('좋은 아이디어를, 함께 완성하는 곳',{exact:true}).waitFor({timeout:60000});
+            await page.evaluate(()=>document.fonts.ready);
+            await page.waitForTimeout(2000);
+            await page.screenshot({path:'/work/output/editor.webp',type:'webp',quality:90,animations:'disabled'});
+            await page.goto(`/workspace/${workspace.id}/page/${documents[6].id}`);
+            await page.getByText('공개 소개 페이지 최종 점검',{exact:true}).waitFor({timeout:60000});
+            await page.waitForTimeout(1500);
+            await page.screenshot({path:'/work/output/database.webp',type:'webp',quality:90,animations:'disabled'});
+            await page.goto(`/workspace/${workspace.id}/graph`);
+            await page.locator('canvas').waitFor({timeout:60000});
+            await page.waitForTimeout(3000);
+            await page.screenshot({path:'/work/output/graph.webp',type:'webp',quality:90,animations:'disabled'});
+            await writeFile('/work/output/provenance.json',JSON.stringify({type:'actual-application-screenshots',data:'synthetic-demo-workspace',views:['editor','database','graph'],private_user_data:false},null,2));
+          } catch(error){await page.screenshot({path:'/work/output/capture-failure.png',fullPage:true}).catch(()=>{});throw error} finally{await browser.close()}
+          JS
+          docker create --name "$browser" --network "$network" --init --shm-size=1g --workdir /work --env-file "$work/browser.env" "$BROWSER_IMAGE" sh -c 'npm install --prefix /work --no-save --ignore-scripts --no-audit --no-fund playwright@1.63.0 && node /work/capture.mjs' >/dev/null
+          docker cp "$work/capture.mjs" "$browser:/work/capture.mjs"
+          status=0
+          docker start -a "$browser" || status=$?
+          mkdir -p "$output"
+          docker cp "$browser:/work/output/." "$output/" || true
+          exit "$status"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: product-screenshots
+          path: ${{ runner.temp }}/product-screenshots/
+          retention-days: 7
+          if-no-files-found: ignore
