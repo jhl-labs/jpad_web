@@ -9,11 +9,6 @@ on:
       - .github/workflows/pages.yml
       - .github/workflows/capture-screenshots.yml
   workflow_dispatch:
-    inputs:
-      inspect_registry:
-        description: Inspect GHCR package access without building or publishing
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -24,7 +19,7 @@ concurrency:
 
 jobs:
   image:
-    if: github.repository == 'jhl-labs/jpad_web' && github.ref == 'refs/heads/main' && !inputs.inspect_registry
+    if: github.repository == 'jhl-labs/jpad_web' && github.ref == 'refs/heads/main'
     runs-on: jhl-space
     timeout-minutes: 120
     permissions:
@@ -66,7 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           candidate="${IMAGE_REPOSITORY}:public-sha-${SOURCE_SHA}"
-          docker build --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" --label "org.opencontainers.image.revision=${SOURCE_SHA}" --build-arg "JPAD_RELEASE_SHA=${SOURCE_SHA}" --tag "$candidate" .
+          docker build --platform linux/amd64 --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" --label "org.opencontainers.image.revision=${SOURCE_SHA}" --build-arg "JPAD_RELEASE_SHA=${SOURCE_SHA}" --tag "$candidate" .
           printf 'CANDIDATE_IMAGE=%s\n' "$candidate" >> "$GITHUB_ENV"
 
       - name: Verify container startup
@@ -127,11 +122,11 @@ jobs:
           test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$SOURCE_SHA"
           log_file="$(mktemp)"
           trap 'rm -f "$log_file"' EXIT
-          timeout --signal=TERM --kill-after=30s 30m docker push "$CANDIDATE_IMAGE" 2>&1 | tee "$log_file"
+          timeout --signal=TERM --kill-after=30s 30m docker push --platform linux/amd64 "$CANDIDATE_IMAGE" 2>&1 | tee "$log_file"
           digest="$(sed -n 's/.*digest: \(sha256:[0-9a-f]\{64\}\).*/\1/p' "$log_file" | tail -1)"
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           docker tag "$CANDIDATE_IMAGE" "$IMAGE_REPOSITORY:latest"
-          timeout --signal=TERM --kill-after=30s 30m docker push "$IMAGE_REPOSITORY:latest" > "$log_file" 2>&1
+          timeout --signal=TERM --kill-after=30s 30m docker push --platform linux/amd64 "$IMAGE_REPOSITORY:latest" 2>&1 | tee "$log_file"
           latest_digest="$(sed -n 's/.*digest: \(sha256:[0-9a-f]\{64\}\).*/\1/p' "$log_file" | tail -1)"
           test "$latest_digest" = "$digest"
           printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
@@ -178,35 +173,3 @@ jobs:
           test "$actual_source" = "$GITHUB_SHA"
           test "$(docker image inspect "$image" --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
           printf 'Anonymous pull verified: `%s`\n\nSource: `%s`\n' "$image" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
-
-  inspect-registry:
-    if: github.repository == 'jhl-labs/jpad_web' && github.ref == 'refs/heads/main' && inputs.inspect_registry
-    runs-on: jhl-space
-    timeout-minutes: 5
-    permissions:
-      packages: read
-    steps:
-      - name: Inspect package association and visibility
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json, os, urllib.request, urllib.error
-          url = 'https://api.github.com/orgs/jhl-labs/packages/container/jpad_web'
-          request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
-          try:
-              with urllib.request.urlopen(request, timeout=25) as response:
-                  package = json.load(response)
-              print(json.dumps({'name': package['name'], 'visibility': package['visibility'], 'repository': (package.get('repository') or {}).get('full_name'), 'version_count': package['version_count'], 'url': package['html_url']}))
-              versions_request = urllib.request.Request(url + '/versions?per_page=10', headers=dict(request.headers))
-              with urllib.request.urlopen(versions_request, timeout=25) as response:
-                  versions = json.load(response)
-              for version in versions:
-                  print(json.dumps({'digest': version['name'], 'created_at': version['created_at'], 'tags': version.get('metadata', {}).get('container', {}).get('tags', [])}))
-          except urllib.error.HTTPError as error:
-              response = json.load(error)
-              print(json.dumps({'status': error.code, 'message': response.get('message')}))
-              raise SystemExit(1)
-          PY
