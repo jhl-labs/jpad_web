@@ -92,15 +92,15 @@ jobs:
             await page.getByText('좋은 아이디어를, 함께 완성하는 곳',{exact:true}).waitFor({timeout:60000});
             await page.evaluate(()=>document.fonts.ready);
             await page.waitForTimeout(2000);
-            await page.screenshot({path:'/work/output/editor.webp',type:'webp',quality:90,animations:'disabled'});
+            await page.screenshot({path:'/work/output/editor.png',type:'png',animations:'disabled'});
             await page.goto(`/workspace/${workspace.id}/page/${documents[6].id}`);
             await page.getByText('공개 소개 페이지 최종 점검',{exact:true}).waitFor({timeout:60000});
             await page.waitForTimeout(1500);
-            await page.screenshot({path:'/work/output/database.webp',type:'webp',quality:90,animations:'disabled'});
+            await page.screenshot({path:'/work/output/database.png',type:'png',animations:'disabled'});
             await page.goto(`/workspace/${workspace.id}/graph`);
             await page.locator('canvas').waitFor({timeout:60000});
             await page.waitForTimeout(3000);
-            await page.screenshot({path:'/work/output/graph.webp',type:'webp',quality:90,animations:'disabled'});
+            await page.screenshot({path:'/work/output/graph.png',type:'png',animations:'disabled'});
             await writeFile('/work/output/provenance.json',JSON.stringify({type:'actual-application-screenshots',data:'synthetic-demo-workspace',views:['editor','database','graph'],private_user_data:false},null,2));
           } catch(error){await page.screenshot({path:'/work/output/capture-failure.png',fullPage:true}).catch(()=>{});throw error} finally{await browser.close()}
           JS
