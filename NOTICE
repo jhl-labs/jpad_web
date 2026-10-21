@@ -1,0 +1,241 @@
+NOTICE
+
+jpad — AI-powered collaborative wiki platform
+Copyright (c) 2025 jhl-labs
+
+This product includes software developed by third parties.
+The following is a list of third-party dependencies and their licenses.
+
+================================================================================
+
+MPL-2.0 Licensed Components
+----------------------------
+
+The following components are licensed under the Mozilla Public License 2.0
+(MPL-2.0). The full text of this license is available at:
+https://www.mozilla.org/en-US/MPL/2.0/
+
+@blocknote/core (MPL-2.0)
+Copyright (c) TypeCellOS / BlockNote Contributors
+https://github.com/TypeCellOS/BlockNote
+
+@blocknote/mantine (MPL-2.0)
+Copyright (c) TypeCellOS / BlockNote Contributors
+https://github.com/TypeCellOS/BlockNote
+
+@blocknote/react (MPL-2.0)
+Copyright (c) TypeCellOS / BlockNote Contributors
+https://github.com/TypeCellOS/BlockNote
+
+@blocknote/shadcn (MPL-2.0)
+Copyright (c) TypeCellOS / BlockNote Contributors
+https://github.com/TypeCellOS/BlockNote
+
+================================================================================
+
+Other Third-Party Dependencies
+-------------------------------
+
+@anthropic-ai/sdk (MIT)
+Copyright 2023 Anthropic, PBC.
+https://github.com/anthropics/anthropic-sdk-typescript
+
+@aws-sdk/client-s3 (Apache-2.0)
+Copyright (c) Amazon Web Services
+https://github.com/aws/aws-sdk-js-v3/tree/main/clients/client-s3
+
+@dnd-kit/core (MIT)
+Copyright (c) 2021, Claudéric Demers
+https://github.com/clauderic/dnd-kit
+
+@dnd-kit/sortable (MIT)
+Copyright (c) 2021, Claudéric Demers
+https://github.com/clauderic/dnd-kit
+
+@dnd-kit/utilities (MIT)
+Copyright (c) 2021, Claudéric Demers
+https://github.com/clauderic/dnd-kit
+
+@eslint/eslintrc (MIT)
+Copyright OpenJS Foundation and other contributors
+https://github.com/eslint/eslintrc#readme
+
+@mantine/core (MIT)
+Copyright (c) 2021 Vitaly Rtishchev
+https://mantine.dev/
+
+@mantine/hooks (MIT)
+Copyright (c) 2021 Vitaly Rtishchev
+https://mantine.dev
+
+@node-saml/node-saml (MIT)
+Copyright (c) 2012 Henri Bergius
+https://github.com/node-saml/node-saml
+
+@playwright/test (Apache-2.0)
+Copyright (c) Microsoft Corporation
+https://playwright.dev
+
+@prisma/client (Apache-2.0)
+Copyright (c) Prisma
+https://www.prisma.io
+
+@tailwindcss/postcss (MIT)
+Copyright (c) Tailwind Labs, Inc.
+https://tailwindcss.com
+
+@types/bcryptjs (MIT)
+Copyright (c) Microsoft Corporation
+https://github.com/DefinitelyTyped/DefinitelyTyped
+
+@types/node (MIT)
+Copyright (c) Microsoft Corporation
+https://github.com/DefinitelyTyped/DefinitelyTyped
+
+@types/react (MIT)
+Copyright (c) Microsoft Corporation
+https://github.com/DefinitelyTyped/DefinitelyTyped
+
+@types/react-dom (MIT)
+Copyright (c) Microsoft Corporation
+https://github.com/DefinitelyTyped/DefinitelyTyped
+
+@types/uuid (MIT)
+Copyright (c) Microsoft Corporation
+https://github.com/DefinitelyTyped/DefinitelyTyped
+
+@types/ws (MIT)
+Copyright (c) Microsoft Corporation
+https://github.com/DefinitelyTyped/DefinitelyTyped
+
+bcryptjs (MIT)
+Copyright (c) 2012 Nevins Bartolomeo <nevins.bartolomeo@gmail.com>
+https://github.com/dcodeIO/bcrypt.js
+
+class-variance-authority (Apache-2.0)
+Copyright (c) Joe Bell
+https://github.com/joe-bell/cva#readme
+
+clsx (MIT)
+Copyright (c) Luke Edwards
+https://github.com/lukeed/clsx
+
+concurrently (MIT)
+Copyright (c) 2015 Kimmo Brunfeldt
+https://github.com/open-cli-tools/concurrently
+
+eslint (MIT)
+Copyright OpenJS Foundation and other contributors
+https://eslint.org
+
+eslint-config-next (MIT)
+Copyright (c) Vercel, Inc.
+https://nextjs.org/docs/app/api-reference/config/eslint
+
+fflate (MIT)
+Copyright (c) 2023 Arjun Barrett
+https://101arrowz.github.io/fflate
+
+ioredis (MIT)
+Copyright (c) 2015-2022 Zihua Li
+https://github.com/luin/ioredis
+
+isomorphic-git (MIT)
+Copyright 2017-2023 the 'isomorphic-git' authors
+https://isomorphic-git.org/
+
+lib0 (MIT)
+Copyright (c) 2019 Kevin Jahns
+https://github.com/dmonad/lib0#readme
+
+lucide-react (ISC)
+Copyright (c) Lucide Contributors 2022
+https://lucide.dev
+
+next (MIT)
+Copyright (c) Vercel, Inc.
+https://nextjs.org
+
+next-auth (ISC)
+Copyright (c) Iain Collins
+https://authjs.dev
+
+postcss (MIT)
+Copyright 2013 Andrey Sitnik
+https://postcss.org/
+
+prisma (Apache-2.0)
+Copyright (c) Prisma
+https://www.prisma.io
+
+react (MIT)
+Copyright (c) Meta Platforms, Inc. and affiliates.
+https://react.dev/
+
+react-dom (MIT)
+Copyright (c) Meta Platforms, Inc. and affiliates.
+https://react.dev/
+
+rehype-sanitize (MIT)
+Copyright (c) Titus Wormer
+https://github.com/rehypejs/rehype-sanitize
+
+rehype-stringify (MIT)
+Copyright (c) Titus Wormer
+https://github.com/rehypejs/rehype
+
+remark-gfm (MIT)
+Copyright (c) Titus Wormer
+https://github.com/remarkjs/remark-gfm
+
+remark-parse (MIT)
+Copyright (c) Titus Wormer
+https://remark.js.org
+
+remark-rehype (MIT)
+Copyright (c) Titus Wormer
+https://github.com/remarkjs/remark-rehype
+
+remark-stringify (MIT)
+Copyright (c) Titus Wormer
+https://remark.js.org
+
+tailwind-merge (MIT)
+Copyright (c) 2021 Dany Castillo
+https://github.com/dcastil/tailwind-merge
+
+tailwindcss (MIT)
+Copyright (c) Tailwind Labs, Inc.
+https://tailwindcss.com
+
+typescript (Apache-2.0)
+Copyright (c) Microsoft Corp.
+https://www.typescriptlang.org/
+
+unified (MIT)
+Copyright (c) Titus Wormer
+https://unifiedjs.com
+
+uuid (MIT)
+Copyright (c) 2010-2020 Robert Kieffer and other contributors
+https://github.com/uuidjs/uuid
+
+ws (MIT)
+Copyright (c) 2011 Einar Otto Stangvik
+https://github.com/websockets/ws
+
+y-protocols (MIT)
+Copyright (c) 2019 Kevin Jahns
+https://github.com/yjs/y-protocols#readme
+
+y-websocket (MIT)
+Copyright (c) 2019 Kevin Jahns
+https://github.com/yjs/y-websocket#readme
+
+yjs (MIT)
+Copyright (c) 2023 Kevin Jahns
+https://docs.yjs.dev
+
+zod (MIT)
+Copyright (c) 2025 Colin McDonnell
+https://zod.dev

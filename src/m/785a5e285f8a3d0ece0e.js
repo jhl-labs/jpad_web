@@ -1,0 +1,1 @@
+export function readCitations(e){if(!Array.isArray(e))return[];return e.filter((e=>e&&typeof e==="object"&&typeof e.id==="string"&&typeof e.pageId==="string"&&typeof e.title==="string"&&typeof e.version==="string"&&Number.isInteger(e.startLine)&&Number.isInteger(e.endLine)&&typeof e.excerpt==="string")).slice(0,12)}

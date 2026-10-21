@@ -1,0 +1,1 @@
+export function showToast(o,t="info"){if(typeof window==="undefined")return;const s=o.trim();if(!s)return;window.dispatchEvent(new CustomEvent("toast",{detail:{message:s,type:t}}))}export function showErrorToast(o){showToast(o,"error")}export function showSuccessToast(o){showToast(o,"success")}

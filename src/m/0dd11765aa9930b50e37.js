@@ -1,0 +1,1 @@
+export function clampPageInsertIndex(n,e){if(n===undefined)return e;return Math.min(Math.max(n,0),e)}export function insertPageIdAtPosition(n,e,t){const r=n.map((n=>n.id));const i=clampPageInsertIndex(t,r.length);r.splice(i,0,e);return r}

@@ -1,0 +1,1 @@
+"use client";import{useEffect as e}from"react";import{withBasePath as r}from"./1ceea855d69ef73d5fb6.js";export function ServiceWorkerRegistration(){e((()=>{if(typeof window!=="undefined"&&"serviceWorker"in navigator&&process.env.NODE_ENV==="production"){navigator.serviceWorker.register(r("/sw.js"),{scope:r("/")}).catch((()=>{}))}}),[]);return null}

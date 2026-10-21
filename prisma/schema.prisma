@@ -1,0 +1,1250 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  
+}
+
+model User {
+  pageSources PageSource[]
+  meetingDrafts MeetingDraft[]
+  id             String    @id @default(uuid())
+  email          String    @unique
+  name           String
+  hashedPassword String?
+  oidcIssuer     String?
+  oidcSubject    String?
+  samlIssuer     String?
+  samlSubject    String?
+  isPlatformAdmin Boolean   @default(false)
+  isOidcPlatformAdmin Boolean @default(false)
+  disabledAt DateTime?
+  sessionVersion Int @default(0)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  memberships WorkspaceMember[]
+  organizations OrganizationMember[]
+  organizationScimIdentities OrganizationScimIdentity[]
+  workspaceScimProvisionedMembers WorkspaceScimProvisionedMember[]
+  ssoLoginTokens SsoLoginToken[]
+  apiTokens  UserApiToken[]
+  comments    Comment[]
+  attachments Attachment[]
+  favorites   Favorite[]
+  pagePermissions PagePermission[]
+  calendarEvents CalendarEvent[]
+  googleCalendarConnections GoogleCalendarConnection[]
+  assignedTodos Todo[] @relation("TodoAssignee")
+  createdTodos  Todo[] @relation("TodoCreator")
+  notifications Notification[]
+  pageTemplates PageTemplate[]
+  aiChats     AiChat[]
+  groupMemberships WorkspaceGroupMember[]
+  createdPageVersions PageVersion[] @relation("PageVersionCreator")
+  pageVersionContributions PageVersionContributor[] @relation("PageVersionContribution")
+  pageEditActivity PageEditActivity[] @relation("PageEditActivity")
+
+  @@unique([oidcIssuer, oidcSubject])
+  @@unique([samlIssuer, samlSubject])
+}
+
+model SsoLoginToken {
+  id        String   @id @default(uuid())
+  provider  String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([provider, expiresAt])
+  @@index([userId, createdAt])
+}
+
+model UserApiToken {
+  id          String    @id @default(uuid())
+  label       String
+  tokenHash   String    @unique
+  tokenPrefix String
+  scopes      String    @default("read,write")
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt, createdAt])
+  @@index([tokenPrefix])
+}
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members   OrganizationMember[]
+  domains   OrganizationDomain[]
+  scimTokens OrganizationScimToken[]
+  scimIdentities OrganizationScimIdentity[]
+  scimGroups OrganizationScimGroup[]
+  workspaces Workspace[]
+}
+
+model OrganizationMember {
+  id             String   @id @default(uuid())
+  role           String   @default("member") 
+  createdAt      DateTime @default(now())
+
+  organizationId String
+  userId         String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model OrganizationDomain {
+  id                String   @id @default(uuid())
+  domain            String   @unique
+  autoJoin          Boolean  @default(false)
+  verificationToken String
+  verifiedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([domain, verifiedAt])
+}
+
+model OrganizationScimToken {
+  id             String   @id @default(uuid())
+  label          String
+  tokenHash      String   @unique
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdByUserId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, revokedAt])
+}
+
+model OrganizationScimIdentity {
+  id                String   @id @default(uuid())
+  externalId        String?
+  userName          String
+  displayName       String?
+  givenName         String?
+  familyName        String?
+  active            Boolean  @default(true)
+  lastProvisionedAt DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organizationId String
+  userId         String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupMemberships OrganizationScimGroupMember[]
+
+  @@unique([organizationId, userId])
+  @@unique([organizationId, externalId])
+  @@unique([organizationId, userName])
+  @@index([organizationId, active])
+  @@index([organizationId, lastProvisionedAt])
+  @@index([userId])
+}
+
+model OrganizationScimGroup {
+  id                String   @id @default(uuid())
+  externalId        String?
+  displayName       String
+  lastProvisionedAt DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members      OrganizationScimGroupMember[]
+  workspaceMappings WorkspaceScimGroupMapping[]
+  provisionedMembers WorkspaceScimProvisionedMember[]
+
+  @@unique([organizationId, externalId])
+  @@unique([organizationId, displayName])
+  @@index([organizationId, lastProvisionedAt])
+  @@index([organizationId, createdAt])
+}
+
+model OrganizationScimGroupMember {
+  id             String   @id @default(uuid())
+  createdAt      DateTime @default(now())
+
+  scimGroupId    String
+  scimIdentityId String
+
+  scimGroup    OrganizationScimGroup    @relation(fields: [scimGroupId], references: [id], onDelete: Cascade)
+  scimIdentity OrganizationScimIdentity @relation(fields: [scimIdentityId], references: [id], onDelete: Cascade)
+
+  @@unique([scimGroupId, scimIdentityId])
+  @@index([scimIdentityId])
+}
+
+model Workspace {
+  notionMirror NotionMirrorConnection?
+  pageSources PageSource[]
+  meetingDrafts MeetingDraft[]
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  visibility  String   @default("private") 
+  publicWikiEnabled Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organizationId String?
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  members  WorkspaceMember[]
+  scimGroupMappings WorkspaceScimGroupMapping[]
+  scimProvisionedMembers WorkspaceScimProvisionedMember[]
+  pages    Page[]
+  todos    Todo[]
+  embeddingChunks PageEmbeddingChunk[]
+  searchIndexJobs SearchIndexJob[]
+  settings WorkspaceSettings?
+  retentionRuns RetentionRunWorkspace[]
+  searchIndexWorkerRuns SearchIndexWorkerRunWorkspace[]
+  calendarEvents CalendarEvent[]
+  googleCalendarConnections GoogleCalendarConnection[]
+  notifications Notification[]
+  pageTemplates PageTemplate[]
+  gitSyncLogs   GitSyncLog[]
+  aiChats       AiChat[]
+  databases     Database[]
+  automations   Automation[]
+  webhooks      Webhook[]
+  groups        WorkspaceGroup[]
+
+  @@index([organizationId])
+}
+
+model WorkspaceMember {
+  id          String   @id @default(uuid())
+  role        String   @default("editor") 
+  managedByScim Boolean @default(false)
+  createdAt   DateTime @default(now())
+
+  userId      String
+  workspaceId String
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([workspaceId, managedByScim])
+}
+
+model WorkspaceScimGroupMapping {
+  id             String   @id @default(uuid())
+  role           String
+  createdByUserId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  workspaceId String
+  scimGroupId String
+
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  scimGroup OrganizationScimGroup @relation(fields: [scimGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, scimGroupId])
+  @@index([scimGroupId, createdAt])
+  @@index([workspaceId, createdAt])
+}
+
+model WorkspaceScimProvisionedMember {
+  id         String   @id @default(uuid())
+  role       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  workspaceId String
+  userId      String
+  scimGroupId String
+
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scimGroup OrganizationScimGroup @relation(fields: [scimGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId, scimGroupId])
+  @@index([workspaceId, userId])
+  @@index([scimGroupId, createdAt])
+}
+
+model Page {
+  notionMirrorItem NotionMirrorItem?
+  source PageSource?
+  id          String   @id @default(uuid())
+  title       String   @default("Untitled")
+  slug        String
+  icon        String?
+  coverImage  String?
+  accessMode  String   @default("workspace") 
+  type        String   @default("document") 
+  position    Int      @default(0)
+  tags        String[] @default([])
+  summary     String?  @db.Text 
+  isLocked    Boolean  @default(false)
+  lockedById  String?
+  lockedAt    DateTime?
+  passwordHash    String?   
+  passwordHint    String?   
+  passwordSetById String?
+  passwordSetAt   DateTime?
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parentId    String?
+  workspaceId String
+
+  parent      Page?      @relation("PageTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Page[]     @relation("PageTree")
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  backlinksFrom Backlink[] @relation("BacklinkFrom")
+  backlinksTo   Backlink[] @relation("BacklinkTo")
+  comments      Comment[]
+  attachments   Attachment[]
+  favorites     Favorite[]
+  permissions   PagePermission[]
+  shareLink     PageShareLink?
+  embeddingChunks PageEmbeddingChunk[]
+  searchIndexJobs SearchIndexJob[]
+  calendarEvents CalendarEvent[]
+  todos         Todo[]
+  database      Database?    @relation("PageDatabase")
+  databaseRow   DatabaseRow? @relation("PageDatabaseRow")
+  groupPermissions PageGroupPermission[] @relation("PageGroupPerm")
+  guestInvites  GuestInvite[] @relation("PageGuestInvite")
+  versions      PageVersion[]
+  editActivity  PageEditActivity[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId])
+  @@index([parentId])
+  @@index([workspaceId, updatedAt])
+  @@index([workspaceId, isDeleted])
+}
+
+
+
+model PageVersion {
+  id           String   @id @default(uuid())
+  pageId       String
+  workspaceId  String            
+  versionNo    Int               
+  label        String?           
+  description  String?  @db.Text
+  content      String   @db.Text 
+  contentHash  String            
+  title        String            
+  gitCommitSha String?           
+  createdById  String            
+  createdAt    DateTime @default(now())
+
+  page         Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  createdBy    User     @relation("PageVersionCreator", fields: [createdById], references: [id])
+  contributors PageVersionContributor[]
+
+  @@unique([pageId, versionNo])
+  @@unique([pageId, label])
+  @@index([workspaceId])
+  @@index([pageId, createdAt])
+}
+
+
+model PageVersionContributor {
+  versionId   String
+  userId      String
+  editCount   Int      @default(1)
+  firstEditAt DateTime
+  lastEditAt  DateTime
+
+  version PageVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  user    User        @relation("PageVersionContribution", fields: [userId], references: [id])
+
+  @@id([versionId, userId])
+  @@index([userId])
+}
+
+
+model PageEditActivity {
+  id          String   @id @default(uuid())
+  pageId      String
+  userId      String
+  windowStart DateTime 
+  editCount   Int      @default(1)
+  lastEditAt  DateTime
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  user User @relation("PageEditActivity", fields: [userId], references: [id])
+
+  @@unique([pageId, userId, windowStart])
+  @@index([pageId, lastEditAt])
+}
+
+model PageEmbeddingChunk {
+  id          String   @id @default(uuid())
+  chunkIndex  Int
+  title       String
+  content     String   @db.Text
+  contentHash String
+  embedding   Json
+  dimension   Int
+  provider    String
+  model       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pageId      String
+  workspaceId String
+
+  page      Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, chunkIndex])
+  @@index([workspaceId, pageId])
+  @@index([workspaceId, updatedAt])
+  @@index([workspaceId, model])
+}
+
+model SearchIndexJob {
+  id          String   @id @default(uuid())
+  jobType     String   
+  status      String   @default("pending") 
+  attempts    Int      @default(0)
+  lastError   String?  @db.Text
+  payload     Json?
+  summary     Json?
+  startedAt   DateTime?
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspaceId String
+  pageId      String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  page      Page?     @relation(fields: [pageId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, status, createdAt])
+  @@index([pageId, createdAt])
+  @@index([jobType, status, createdAt])
+}
+
+model PagePermission {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  pageId String
+  userId String
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, userId])
+  @@index([userId])
+}
+
+model PageShareLink {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  expiresAt DateTime?
+  revokedAt DateTime?
+
+  pageId String @unique
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId, revokedAt])
+}
+
+model Backlink {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  fromPageId String
+  toPageId   String
+
+  fromPage Page @relation("BacklinkFrom", fields: [fromPageId], references: [id], onDelete: Cascade)
+  toPage   Page @relation("BacklinkTo", fields: [toPageId], references: [id], onDelete: Cascade)
+
+  @@unique([fromPageId, toPageId])
+  @@index([toPageId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String   @db.Text
+  resolved  Boolean  @default(false)
+  anchor    Json?    
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pageId   String
+  userId   String
+  parentId String?
+
+  page   Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent Comment?  @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentThread")
+
+  
+  @@index([pageId, parentId, createdAt])
+  @@index([userId])
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  filename  String
+  mimeType  String
+  size      Int
+  path      String   
+  storage   String   @default("local") 
+  securityStatus    String   @default("not_scanned") 
+  securityDisposition String? 
+  securityScanner   String?
+  securityFindings  Json?
+  securityCheckedAt DateTime?
+  securityReviewedAt DateTime?
+  securityReviewedByUserId String?
+  securityReviewNote String?
+  createdAt DateTime @default(now())
+
+  pageId String
+  userId String
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
+  @@index([securityStatus, securityDisposition, createdAt])
+  
+  @@index([createdAt])
+}
+
+model Favorite {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  userId String
+  pageId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pageId])
+  @@index([userId])
+}
+
+model AiChat {
+  citations Json @default("[]")
+  id        String   @id @default(uuid())
+  role      String   
+  content   String   @db.Text
+  pageId    String?
+  workspaceId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId, createdAt])
+  @@index([pageId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  action     String
+  status     String   @default("success") 
+  requestId  String?
+  actorId    String?
+  actorEmail String?
+  actorName  String?
+  actorRole  String?
+  workspaceId String?
+  pageId     String?
+  targetId   String?
+  targetType String?
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  webhookDeliveries AuditLogWebhookDelivery[]
+
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([pageId, createdAt])
+  @@index([action, createdAt])
+  @@index([requestId, createdAt])
+}
+
+model AuditLogWebhookDelivery {
+  id               String   @id @default(uuid())
+  auditLogId       String
+  destinationType  String   @default("webhook")
+  destinationLabel String   @default("primary")
+  status           String   @default("pending") 
+  attempts         Int      @default(0)
+  nextAttemptAt    DateTime @default(now())
+  lastAttemptAt    DateTime?
+  deliveredAt      DateTime?
+  responseStatus   Int?
+  lastError        String?
+  payload          Json
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  auditLog AuditLog @relation(fields: [auditLogId], references: [id], onDelete: Cascade)
+
+  @@unique([auditLogId, destinationType, destinationLabel])
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([auditLogId, createdAt])
+}
+
+model RetentionRun {
+  id                String   @id @default(uuid())
+  mode              String   
+  trigger           String   @default("manual") 
+  status            String   @default("running") 
+  config            Json
+  summary           Json?
+  workspaceSummary  Json?
+  errorMessage      String?
+  startedAt         DateTime @default(now())
+  finishedAt        DateTime?
+
+  workspaceRuns     RetentionRunWorkspace[]
+
+  @@index([startedAt])
+  @@index([status, startedAt])
+}
+
+model RetentionRunWorkspace {
+  id                   String   @id @default(uuid())
+  retentionRunId       String
+  workspaceId          String
+  purgedPageCount      Int      @default(0)
+  purgedAttachmentCount Int     @default(0)
+  purgedShareLinkCount Int      @default(0)
+  purgedAiChatCount    Int      @default(0)
+  purgedAuditLogCount  Int      @default(0)
+  createdAt            DateTime @default(now())
+
+  retentionRun RetentionRun @relation(fields: [retentionRunId], references: [id], onDelete: Cascade)
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([retentionRunId, workspaceId])
+  @@index([workspaceId, createdAt])
+  @@index([retentionRunId, createdAt])
+}
+
+model BackupRun {
+  id              String   @id @default(uuid())
+  mode            String   
+  trigger         String   @default("manual") 
+  status          String   @default("running") 
+  backupRootDir   String
+  destinationPath String?
+  config          Json
+  summary         Json?
+  manifest        Json?
+  errorMessage    String?
+  startedAt       DateTime @default(now())
+  finishedAt      DateTime?
+
+  artifacts    BackupArtifact[]
+  restoreDrills RestoreDrillRun[]
+
+  @@index([startedAt])
+  @@index([status, startedAt])
+}
+
+model BackupArtifact {
+  id             String   @id @default(uuid())
+  backupRunId    String
+  kind           String
+  status         String   @default("created") 
+  filePath       String?
+  sizeBytes      String?
+  checksumSha256 String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  backupRun BackupRun @relation(fields: [backupRunId], references: [id], onDelete: Cascade)
+
+  @@index([backupRunId, createdAt])
+  @@index([kind, createdAt])
+}
+
+model RestoreDrillRun {
+  id           String   @id @default(uuid())
+  backupRunId  String
+  trigger      String   @default("manual") 
+  status       String   @default("running") 
+  summary      Json?
+  errorMessage String?
+  startedAt    DateTime @default(now())
+  finishedAt   DateTime?
+
+  backupRun BackupRun @relation(fields: [backupRunId], references: [id], onDelete: Cascade)
+
+  @@index([startedAt])
+  @@index([backupRunId, startedAt])
+  @@index([status, startedAt])
+}
+
+model SearchIndexWorkerRun {
+  id              String   @id @default(uuid())
+  trigger         String   @default("manual") 
+  status          String   @default("running") 
+  workspaceScopeId String?
+  limit           Int?
+  summary         Json?
+  errorMessage    String?
+  startedAt       DateTime @default(now())
+  finishedAt      DateTime?
+
+  workspaceRuns SearchIndexWorkerRunWorkspace[]
+
+  @@index([startedAt])
+  @@index([status, startedAt])
+  @@index([workspaceScopeId, startedAt])
+}
+
+model SearchIndexWorkerRunWorkspace {
+  id                         String   @id @default(uuid())
+  searchIndexWorkerRunId     String
+  workspaceId                String
+  processedJobCount          Int      @default(0)
+  successJobCount            Int      @default(0)
+  errorJobCount              Int      @default(0)
+  pageReindexJobCount        Int      @default(0)
+  workspaceReindexJobCount   Int      @default(0)
+  createdAt                  DateTime @default(now())
+
+  searchIndexWorkerRun SearchIndexWorkerRun @relation(fields: [searchIndexWorkerRunId], references: [id], onDelete: Cascade)
+  workspace            Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([searchIndexWorkerRunId, workspaceId])
+  @@index([workspaceId, createdAt])
+  @@index([searchIndexWorkerRunId, createdAt])
+}
+
+model WorkspaceSettings {
+  id          String @id @default(uuid())
+  workspaceId String @unique
+
+  
+  aiEnabled     Boolean @default(true)
+  aiModel       String  @default("claude-sonnet-4-20250514")
+  aiApiKey      String? 
+  aiMaxTokens   Int     @default(2048)
+  aiProfiles    Json?
+  aiTaskRouting Json?
+
+  
+  allowPublicPages  Boolean @default(true)
+  allowMemberInvite Boolean @default(true) 
+  defaultPageAccess String  @default("workspace") 
+  maxFileUploadMb   Int     @default(10)
+  uploadDlpScanMode String?
+  uploadDlpDetectors Json?
+  uploadDlpMaxExtractedCharacters Int?
+
+  
+  googleCalendarClientId     String?
+  googleCalendarClientSecret String? 
+
+  
+  gitRemoteUrl        String?
+  gitRemoteToken      String?   
+  gitRemoteBranch     String?   @default("main")
+  gitSyncMode         String?   
+  gitSyncEnabled      Boolean   @default(false)
+  gitAutoSyncOnSave   Boolean   @default(true)
+  gitWebhookSecret    String?   
+  gitSyncIncludeData  Boolean   @default(false) 
+  gitSyncImportOnPull Boolean   @default(false) 
+  gitSyncDebounceMs   Int?      
+  gitSyncMaxWaitMs    Int?      
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model GitSyncLog {
+  id            String    @id @default(uuid())
+  workspaceId   String
+  direction     String    
+  status        String    @default("running")
+  trigger       String    
+  errorMessage  String?   @db.Text
+  filesChanged  Int       @default(0)
+  startedAt     DateTime  @default(now())
+  finishedAt    DateTime?
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, startedAt])
+}
+
+model CalendarEvent {
+  id            String   @id @default(uuid())
+  title         String
+  description   String?
+  startAt       DateTime
+  endAt         DateTime?
+  allDay        Boolean  @default(false)
+  color         String?  @default("#3b82f6")
+  location      String?
+  recurrence    String?
+  googleEventId String?
+
+  workspaceId String
+  createdById String
+  pageId      String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy   User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  page        Page?     @relation(fields: [pageId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, startAt])
+  @@index([createdById])
+  @@index([workspaceId, googleEventId])
+}
+
+model Todo {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  completed   Boolean   @default(false)
+  priority    String    @default("medium")
+  dueDate     DateTime?
+  completedAt DateTime?
+  sortOrder   Int       @default(0)
+
+  workspaceId String
+  assigneeId  String?
+  createdById String
+  pageId      String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignee    User?     @relation("TodoAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdBy   User      @relation("TodoCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  page        Page?     @relation(fields: [pageId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, completed, dueDate])
+  @@index([assigneeId])
+  @@index([createdById])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  type      String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  readAt    DateTime?
+  link      String?
+
+  userId    String
+  workspaceId String?
+
+  createdAt DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
+  @@index([workspaceId])
+}
+
+model GoogleCalendarConnection {
+  id            String   @id @default(uuid())
+  userId        String
+  workspaceId   String
+  accessToken   String   
+  refreshToken  String   
+  tokenExpiry   DateTime
+  calendarId    String   @default("primary")
+  syncEnabled   Boolean  @default(true)
+  lastSyncAt    DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+}
+
+model PageTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  icon        String?
+  content     String   @db.Text
+  category    String   @default("custom")
+  isBuiltIn   Boolean  @default(false)
+
+  workspaceId String
+  createdById String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy   User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, category])
+}
+
+
+
+model Database {
+  id          String   @id @default(uuid())
+  title       String   @default("Untitled Database")
+  properties  Json     @default("[]") 
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspaceId String
+  pageId      String   @unique 
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  page        Page      @relation("PageDatabase", fields: [pageId], references: [id], onDelete: Cascade)
+  rows        DatabaseRow[]
+  views       DatabaseView[]
+  forms       DatabaseForm[]
+
+  @@index([workspaceId])
+}
+
+model DatabaseRow {
+  id         String   @id @default(uuid())
+  values     Json     @default("{}") 
+  position   Float    @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  databaseId String
+  pageId     String   @unique 
+
+  database   Database @relation(fields: [databaseId], references: [id], onDelete: Cascade)
+  page       Page     @relation("PageDatabaseRow", fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([databaseId, position])
+}
+
+model DatabaseView {
+  id         String   @id @default(uuid())
+  name       String   @default("Table")
+  type       String   @default("table") 
+  config     Json     @default("{}") 
+  position   Float    @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  databaseId String
+  database   Database @relation(fields: [databaseId], references: [id], onDelete: Cascade)
+
+  @@index([databaseId, position])
+}
+
+model DatabaseForm {
+  submissions FormSubmission[]
+  id          String   @id @default(uuid())
+  title       String   @default("Form")
+  config      Json     @default("{}") 
+  publicToken String   @unique @default(uuid())
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  databaseId String
+  database   Database @relation(fields: [databaseId], references: [id], onDelete: Cascade)
+
+  @@index([databaseId])
+}
+
+
+
+model Automation {
+  activatedAt DateTime @default(now())
+  runs AutomationRun[]
+  id          String   @id @default(uuid())
+  name        String   @default("Automation")
+  enabled     Boolean  @default(true)
+  trigger     Json     
+  action      Json     
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, enabled])
+}
+
+model Webhook {
+  id          String   @id @default(uuid())
+  url         String
+  secret      String   
+  events      String[] @default([]) 
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deliveries  WebhookDelivery[]
+
+  @@index([workspaceId, enabled])
+}
+
+model WebhookDelivery {
+  id          String   @id @default(uuid())
+  event       String
+  payload     Json
+  status      String   @default("pending") 
+  statusCode  Int?
+  attempts    Int      @default(0)
+  lastError   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  webhookId   String
+  webhook     Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, createdAt])
+}
+
+
+
+model WorkspaceGroup {
+  id          String   @id @default(uuid())
+  name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members     WorkspaceGroupMember[]
+  pagePermissions PageGroupPermission[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
+model WorkspaceGroupMember {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  groupId   String
+  userId    String
+
+  group     WorkspaceGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+}
+
+model PageGroupPermission {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  pageId  String
+  groupId String
+
+  page  Page           @relation("PageGroupPerm", fields: [pageId], references: [id], onDelete: Cascade)
+  group WorkspaceGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, groupId])
+  @@index([groupId])
+}
+
+
+
+model GuestInvite {
+  id          String   @id @default(uuid())
+  token       String   @unique @default(uuid())
+  role        String   @default("viewer") 
+  email       String?
+  createdById String
+  acceptedByUserId String?
+  acceptedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  pageId String
+  page   Page @relation("PageGuestInvite", fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
+}
+
+model FormSubmission {
+  id String @id @default(uuid())
+  formId String
+  requestId String
+  rowId String
+  createdAt DateTime @default(now())
+  form DatabaseForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  @@unique([formId, requestId])
+  @@index([formId, createdAt])
+}
+
+model AutomationRun {
+  id String @id @default(uuid())
+  automationId String
+  eventKey String
+  context Json
+  actions Json
+  status String @default("pending")
+  nextAction Int @default(0)
+  attempts Int @default(0)
+  leaseToken String?
+  leaseUntil DateTime?
+  retryAt DateTime @default(now())
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  automation Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  @@unique([automationId, eventKey])
+  @@index([status, retryAt])
+}
+
+model MeetingDraft {
+  id String @id @default(uuid())
+  workspaceId String
+  userId String
+  title String
+  transcript String @db.Text
+  summary Json
+  consentAt DateTime
+  appliedAt DateTime?
+  pageId String?
+  createdAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([workspaceId, userId, createdAt])
+}
+
+model PageSource {
+  id String @id @default(uuid())
+  workspaceId String
+  userId String
+  pageId String @unique
+  url String
+  fetchedAt DateTime @default(now())
+  sourceHash String
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  @@index([workspaceId, userId])
+}
+
+
+model NotionMirrorConnection {
+  id String @id @default(uuid())
+  workspaceId String @unique
+  ownerId String
+  rootPageId String @unique
+  accessToken String
+  enabled Boolean @default(true)
+  nextSyncAt DateTime @default(now())
+  lastSyncAt DateTime?
+  lastError String?
+  failureCount Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  items NotionMirrorItem[]
+
+  @@index([enabled, nextSyncAt])
+}
+
+model NotionMirrorItem {
+  id String @id @default(uuid())
+  connectionId String
+  pageId String? @unique
+  remoteId String?
+  kind String @default("page") 
+  remoteDatabaseId String?
+  propertyMap Json @default("{}") 
+  
+  localBase Json?
+  remoteBase Json?
+  
+  intent Json?
+  conflict Json?
+  status String @default("pending")
+  message String?
+  lastSyncAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  connection NotionMirrorConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  page Page? @relation(fields: [pageId], references: [id], onDelete: SetNull)
+
+  @@unique([connectionId, remoteId])
+  @@index([connectionId, status])
+}

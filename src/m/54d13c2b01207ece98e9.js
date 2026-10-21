@@ -1,0 +1,1 @@
+import{unified as r}from"unified";import e from"remark-parse";import o from"remark-gfm";import m from"remark-rehype";import i from"rehype-sanitize";import t from"rehype-stringify";export async function renderMarkdown(p){const s=await r().use(e).use(o).use(m).use(i).use(t).process(p);return String(s)}

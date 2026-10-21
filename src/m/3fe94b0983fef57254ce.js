@@ -1,0 +1,1 @@
+import{apiFetch as a}from"./295bed54539288b2d643.js";export function fetchDatabase(e,t,n=0){const s=new URLSearchParams({offset:String(n)});if(t)s.set("viewId",t);return a(`/api/databases/${e}?${s}`)}export async function fetchDatabaseByPage(e){const t=await a(`/api/databases/by-page?pageId=${encodeURIComponent(e)}`).catch((()=>null));return t?.databaseId??null}

@@ -1,0 +1,1 @@
+export function getRelativeTime(t){const o=Date.now();const r=o-new Date(t).getTime();const e=Math.floor(r/1e3);if(e<60)return"방금 전";const n=Math.floor(e/60);if(n<60)return`${n}분 전`;const f=Math.floor(n/60);if(f<24)return`${f}시간 전`;const a=Math.floor(f/24);if(a<30)return`${a}일 전`;const i=Math.floor(a/30);if(i<12)return`${i}개월 전`;return`${Math.floor(i/12)}년 전`}

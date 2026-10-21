@@ -1,0 +1,1 @@
+import{InputError as e}from"./a17fbe2feae0e091406f.js";export function assertUrlBoundHeaders(t){const o=t instanceof Headers?[...t.keys()]:Object.keys(t??{});if(o.some((e=>["host",":authority"].includes(e.trim().toLowerCase())))){throw new e("HTTP routing headers must not override the destination URL")}}

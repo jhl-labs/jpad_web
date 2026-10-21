@@ -1,0 +1,1 @@
+export function escapeSpreadsheetCsv(e){if(e===null||e===undefined)return"";let t=typeof e==="string"?e:JSON.stringify(e);if(/^[\s\x00-\x1f]*[=+\-@]/.test(t))t=`'${t}`;return/[",\r\n]/.test(t)?`"${t.replace(/"/g,'""')}"`:t}

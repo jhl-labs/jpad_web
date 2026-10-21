@@ -1,0 +1,1 @@
+import{withLock as t}from"./7416735f3ff94cc3bb90.js";import{exportWorkspaceData as a}from"./53e0210bbe36a45e4327.js";import{pushToRemoteLocked as r}from"./792178942a055447a0e0.js";export async function syncPushWithData(e,i,n){return t(`git-sync:${e}`,(async()=>{if(n.includeData){await a(e,n.exportedByEmail)}return r(e,i)}))}

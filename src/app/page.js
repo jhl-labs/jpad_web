@@ -1,0 +1,1 @@
+import{redirect as o}from"next/navigation";import{getServerSession as t}from"next-auth";import{authOptions as i}from"../m/6d7981f79dcf9de31ec6.js";export default async function n(){const n=await t(i);if(!n){o("/login")}o("/workspace")}

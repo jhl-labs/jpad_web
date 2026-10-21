@@ -1,0 +1,1 @@
+export const YJS_SYNC_STEP_1=0;export const YJS_SYNC_STEP_2=1;export const YJS_UPDATE=2;export function canApplyClientSyncMessage(t,n){return t||n===YJS_SYNC_STEP_1}export function canAttachToDocumentGeneration(t,n,e,o){return!o&&t===n&&e<=t}

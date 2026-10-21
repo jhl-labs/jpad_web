@@ -1,0 +1,1 @@
+export function appendDatabaseBlock(t,n){const e=`[database](#database=${encodeURIComponent(n)})`;const a=`[database](#database=${encodeURIComponent(n)}&view=`;if(t.split(/\r?\n/).some((t=>t.trim()===e||t.trim().startsWith(a)&&t.trim().endsWith(")"))))return t;return`${t.trimEnd()}${t.trim()?"\n\n":""}${e}\n\n`}

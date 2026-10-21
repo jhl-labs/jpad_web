@@ -1,0 +1,12 @@
+**
+!package.json
+!bun.lock
+!next.config.mjs
+!postcss.config.mjs
+!prisma.config.js
+!src/**
+!runtime/**
+!prisma/**
+!public/**
+!LICENSE
+!NOTICE

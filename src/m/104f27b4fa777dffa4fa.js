@@ -1,0 +1,1 @@
+"use client";import{jsx as e}from"react/jsx-runtime";export function ToastMessage({message:r}){if(!r)return null;return e("div",{className:"fixed bottom-4 right-4 z-[100] px-4 py-2.5 rounded-lg shadow-lg text-sm",style:{background:"var(--foreground)",color:"var(--background)"},role:"status","aria-live":"polite",children:r})}

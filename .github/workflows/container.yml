@@ -1,0 +1,122 @@
+name: Container
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    if: github.repository == 'jhl-labs/jpad_web' && github.ref == 'refs/heads/main'
+    runs-on: jhl-space
+    timeout-minutes: 120
+    env:
+      IMAGE_REPOSITORY: docker.io/declue/jpad
+      SOURCE_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Verify distribution boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          python3 - <<'PY'
+          import pathlib, re, subprocess
+          files = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+          roots = {'src', 'runtime', 'prisma', 'public'}
+          exact = {'Dockerfile', '.dockerignore', '.gitignore', 'package.json', 'bun.lock', 'next.config.mjs', 'postcss.config.mjs', 'prisma.config.js', 'LICENSE', 'NOTICE', '.github/workflows/container.yml'}
+          for name in filter(None, files):
+              p = pathlib.PurePosixPath(name)
+              assert name in exact or p.parts[0] in roots, name
+              assert not any(re.search(r'(?i)^(tests?|docs?|skills?|agents?|harness|\.claude|\.codex|node_modules)$', part) for part in p.parts), name
+              assert p.suffix.lower() not in {'.md', '.map', '.ts', '.tsx', '.pem', '.key', '.crt'}, name
+              assert not re.search(r'(?i)(?:^|/)(?:AGENTS|CLAUDE)(?:\.|$)|\.(?:test|spec)\.', name), name
+              if p.suffix in {'.js', '.mjs', '.json', '.prisma', '.sql', '.css', '.svg'}:
+                  content = pathlib.Path(name).read_text()
+                  assert not re.search(r'/[h]ome/|BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY', content), name
+          PY
+
+      - name: Build candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="${IMAGE_REPOSITORY}:public-sha-${SOURCE_SHA}"
+          docker build --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" --label "org.opencontainers.image.revision=${SOURCE_SHA}" --build-arg "JPAD_RELEASE_SHA=${SOURCE_SHA}" --tag "$candidate" .
+          printf 'CANDIDATE_IMAGE=%s\n' "$candidate" >> "$GITHUB_ENV"
+
+      - name: Verify container startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          prefix="jpad-public-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          network="${prefix}-net"
+          database="${prefix}-db"
+          redis="${prefix}-redis"
+          app="${prefix}-app"
+          env_file="$(mktemp)"
+          cleanup() {
+            docker rm -f "$app" "$database" "$redis" >/dev/null 2>&1 || true
+            docker network rm "$network" >/dev/null 2>&1 || true
+            rm -f "$env_file"
+          }
+          trap cleanup EXIT
+          docker network create "$network" >/dev/null
+          db_password="$(openssl rand -hex 24)"
+          printf 'POSTGRES_PASSWORD=%s\nPOSTGRES_USER=jpad\nPOSTGRES_DB=jpad\n' "$db_password" > "$env_file"
+          docker run -d --name "$database" --network "$network" --env-file "$env_file" postgres:17-alpine >/dev/null
+          docker run -d --name "$redis" --network "$network" redis:7-alpine >/dev/null
+          printf 'DATABASE_URL=postgresql://jpad:%s@%s:5432/jpad\nREDIS_URL=redis://%s:6379\nNEXTAUTH_URL=http://%s:3000\nNEXTAUTH_SECRET=%s\nAPP_ENCRYPTION_KEY=%s\nWS_SECRET=%s\nJPAD_AUTO_SEED=0\n' "$db_password" "$database" "$redis" "$app" "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" > "$env_file"
+          docker run -d --name "$app" --network "$network" --env-file "$env_file" "$CANDIDATE_IMAGE" >/dev/null
+          healthy=false
+          for attempt in $(seq 1 60); do
+            if docker exec "$app" /usr/local/bin/bun -e 'const r=await fetch("http://localhost:3000/api/health");if(!r.ok)process.exit(1);const l=await fetch("http://localhost:3000/login");if(!l.ok)process.exit(1)' >/dev/null 2>&1; then healthy=true; break; fi
+            if [ "$(docker inspect --format '{{.State.Running}}' "$app")" != true ]; then break; fi
+            sleep 3
+          done
+          test "$healthy" = true
+          docker exec "$app" /usr/local/bin/bun -e 'const net=await import("node:net");const s=net.connect(1234,"127.0.0.1",()=>{s.end()});s.on("error",()=>process.exit(1));s.setTimeout(5000,()=>process.exit(1))'
+
+      - name: Scan candidate
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          version: v0.73.0
+          image-ref: ${{ env.CANDIDATE_IMAGE }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          scanners: vuln,secret
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Publish immutable candidate and receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          trap 'rm -f "$log_file"' EXIT
+          timeout --signal=TERM --kill-after=30s 30m docker push "$CANDIDATE_IMAGE" 2>&1 | tee "$log_file"
+          digest="$(sed -n 's/.*digest: \(sha256:[0-9a-f]\{64\}\).*/\1/p' "$log_file" | tail -1)"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          jq -n --arg source "$GITHUB_REPOSITORY" --arg sha "$SOURCE_SHA" --arg run "$GITHUB_RUN_ID" --arg attempt "$GITHUB_RUN_ATTEMPT" --arg platform linux/amd64 --arg image "$IMAGE_REPOSITORY@$digest" '{repository:$source,source_sha:$sha,run_id:$run,run_attempt:$attempt,platform:$platform,image:$image}' > receipt.json
+          printf 'Source: `%s`\n\nImage: `%s@%s`\n' "$SOURCE_SHA" "$IMAGE_REPOSITORY" "$digest" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: container-receipt
+          path: receipt.json
+          retention-days: 30

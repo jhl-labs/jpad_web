@@ -1,0 +1,1 @@
+import{clsx as e}from"clsx";import{twMerge as r}from"tailwind-merge";export function cn(...t){return r(e(t))}export function slugify(e){return e.toLowerCase().replace(/[^a-z0-9\s-]/g,"").replace(/\s+/g,"-").replace(/-+/g,"-").replace(/^-+|-+$/g,"")}export function pageSlugFromTitleOrId(e,r){return slugify(e)||`page-${r.slice(0,8)}`}
