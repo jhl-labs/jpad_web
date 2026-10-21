@@ -21,7 +21,7 @@ jobs:
         shell: bash
         env:
           APP_IMAGE: docker.io/declue/jpad@sha256:138dad1379ad16192d448768ed0236192d793350fecdfc12293a3078d9eb50b9
-          BROWSER_IMAGE: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+          BROWSER_IMAGE: node:24-bookworm-slim@sha256:91acba91b842bec0bf7ea6f5e09c644c7ccad72c4996ed9616d861d1c7cd60d4
         run: |
           set -euo pipefail
           prefix="jpad-capture-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -87,14 +87,15 @@ jobs:
             for(let i=1;i<documents.length-1;i++)await api('PUT',`/api/pages/${documents[i].id}/content`,{content:`## 함께 쌓아가는 팀의 지식\n\n이 문서는 소개 페이지 촬영용 가상 샘플입니다.\n\n[[${documents[0].title}]]와 [[${documents[(i+1)%(documents.length-1)].title}]]를 함께 읽으며 다음 결정을 준비합니다.\n\n- 발견한 내용을 짧게 정리하기\n- 관련 자료와 생각을 연결하기\n- 다음 행동으로 이어가기`});
             const db=await api('POST','/api/databases',{pageId:documents[6].id,title:'제품 로드맵',properties:[{id:'status',name:'상태',type:'select',options:[{id:'planned',label:'예정',color:'#94a3b8'},{id:'doing',label:'진행 중',color:'#3b82f6'},{id:'done',label:'완료',color:'#22c55e'}]},{id:'area',name:'영역',type:'select',options:[{id:'product',label:'제품',color:'#8b5cf6'},{id:'design',label:'디자인',color:'#f59e0b'},{id:'content',label:'콘텐츠',color:'#06b6d4'}]},{id:'owner',name:'담당',type:'text'},{id:'due',name:'목표일',type:'date'}]});
             for(const [title,status,area,owner,due] of [['첫 화면의 작성 경험 다듬기','done','design','디자인 팀','2026-10-20'],['사용자 인터뷰 인사이트 정리','done','product','제품 팀','2026-10-21'],['프로젝트 위키 템플릿 만들기','doing','content','콘텐츠 팀','2026-10-23'],['협업 피드백 흐름 개선','doing','product','제품 팀','2026-10-25'],['브랜드 가이드 문서 연결','doing','design','디자인 팀','2026-10-26'],['도움말과 시작 가이드 작성','planned','content','콘텐츠 팀','2026-10-28'],['공개 소개 페이지 최종 점검','planned','design','디자인 팀','2026-10-29'],['다음 릴리스 계획 공유','planned','product','제품 팀','2026-10-30']])await api('POST',`/api/databases/${db.id}/rows`,{title,values:{status,area,owner,due}});
-            await api('POST',`/api/databases/${db.id}/views`,{name:'보드',type:'board',config:{groupBy:'status'}});
+            await api('POST',`/api/databases/${db.id}/views`,{name:'보드',type:'board',config:{groupByPropertyId:'status'}});
             await page.goto(`/workspace/${workspace.id}/page/${documents[0].id}`);
             await page.getByText('좋은 아이디어를, 함께 완성하는 곳',{exact:true}).waitFor({timeout:60000});
             await page.evaluate(()=>document.fonts.ready);
             await page.waitForTimeout(2000);
             await page.screenshot({path:'/work/output/editor.png',type:'png',animations:'disabled'});
             await page.goto(`/workspace/${workspace.id}/page/${documents[6].id}`);
-            await page.getByText('공개 소개 페이지 최종 점검',{exact:true}).waitFor({timeout:60000});
+            await page.locator('table tbody tr').first().waitFor({timeout:60000});
+            await page.locator('table').first().evaluate(table=>table.scrollIntoView({block:'center'}));
             await page.waitForTimeout(1500);
             await page.screenshot({path:'/work/output/database.png',type:'png',animations:'disabled'});
             await page.goto(`/workspace/${workspace.id}/graph`);
@@ -104,7 +105,7 @@ jobs:
             await writeFile('/work/output/provenance.json',JSON.stringify({type:'actual-application-screenshots',data:'synthetic-demo-workspace',views:['editor','database','graph'],private_user_data:false},null,2));
           } catch(error){await page.screenshot({path:'/work/output/capture-failure.png',fullPage:true}).catch(()=>{});throw error} finally{await browser.close()}
           JS
-          docker create --name "$browser" --network "$network" --init --shm-size=1g --workdir /work --env-file "$work/browser.env" "$BROWSER_IMAGE" sh -c 'npm install --prefix /work --no-save --ignore-scripts --no-audit --no-fund playwright@1.63.0 && node /work/capture.mjs' >/dev/null
+          docker create --name "$browser" --network "$network" --init --shm-size=1g --workdir /work --env-file "$work/browser.env" "$BROWSER_IMAGE" sh -c 'npm install --prefix /work --no-save --ignore-scripts --no-audit --no-fund playwright@1.63.0 && node /work/node_modules/playwright/cli.js install --with-deps --only-shell chromium && node /work/capture.mjs' >/dev/null
           docker cp "$work/capture.mjs" "$browser:/work/capture.mjs"
           status=0
           docker start -a "$browser" || status=$?
