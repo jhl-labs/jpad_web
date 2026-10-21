@@ -6,7 +6,17 @@ JPAD는 실시간 공동 편집과 AI 기능을 제공하는 문서·위키 서�
 
 이 저장소는 Docker로 빌드할 수 있는 공개 배포용 소스를 제공합니다. 코드는 배포용으로 변환·축약되어 있으며, 테스트·내부 개발 문서·개발 하네스는 포함하지 않습니다.
 
-## 빌드
+## 컨테이너 이미지
+
+이미지는 [GitHub Container Registry](https://github.com/jhl-labs/jpad_web/pkgs/container/jpad_web)에 발행합니다 (`linux/amd64`).
+
+```sh
+docker pull ghcr.io/jhl-labs/jpad_web:latest
+```
+
+각 빌드는 `public-sha-<커밋 SHA>` 태그도 제공합니다. 버전을 고정하려면 CI의 `container-receipt`에 기록된 `ghcr.io/jhl-labs/jpad_web@sha256:...` digest를 사용하세요.
+
+## 직접 빌드
 
 ```sh
 docker build -t jpad-web .
