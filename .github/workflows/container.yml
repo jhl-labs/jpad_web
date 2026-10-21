@@ -200,6 +200,11 @@ jobs:
               with urllib.request.urlopen(request, timeout=25) as response:
                   package = json.load(response)
               print(json.dumps({'name': package['name'], 'visibility': package['visibility'], 'repository': (package.get('repository') or {}).get('full_name'), 'version_count': package['version_count'], 'url': package['html_url']}))
+              versions_request = urllib.request.Request(url + '/versions?per_page=10', headers=dict(request.headers))
+              with urllib.request.urlopen(versions_request, timeout=25) as response:
+                  versions = json.load(response)
+              for version in versions:
+                  print(json.dumps({'digest': version['name'], 'created_at': version['created_at'], 'tags': version.get('metadata', {}).get('container', {}).get('tags', [])}))
           except urllib.error.HTTPError as error:
               response = json.load(error)
               print(json.dumps({'status': error.code, 'message': response.get('message')}))
