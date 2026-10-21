@@ -9,6 +9,11 @@ on:
       - .github/workflows/pages.yml
       - .github/workflows/capture-screenshots.yml
   workflow_dispatch:
+    inputs:
+      inspect_registry:
+        description: Inspect GHCR package access without building or publishing
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -19,7 +24,7 @@ concurrency:
 
 jobs:
   image:
-    if: github.repository == 'jhl-labs/jpad_web' && github.ref == 'refs/heads/main'
+    if: github.repository == 'jhl-labs/jpad_web' && github.ref == 'refs/heads/main' && !inputs.inspect_registry
     runs-on: jhl-space
     timeout-minutes: 120
     permissions:
@@ -173,3 +178,30 @@ jobs:
           test "$actual_source" = "$GITHUB_SHA"
           test "$(docker image inspect "$image" --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
           printf 'Anonymous pull verified: `%s`\n\nSource: `%s`\n' "$image" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+  inspect-registry:
+    if: github.repository == 'jhl-labs/jpad_web' && github.ref == 'refs/heads/main' && inputs.inspect_registry
+    runs-on: jhl-space
+    timeout-minutes: 5
+    permissions:
+      packages: read
+    steps:
+      - name: Inspect package association and visibility
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          url = 'https://api.github.com/orgs/jhl-labs/packages/container/jpad_web'
+          request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+          try:
+              with urllib.request.urlopen(request, timeout=25) as response:
+                  package = json.load(response)
+              print(json.dumps({'name': package['name'], 'visibility': package['visibility'], 'repository': (package.get('repository') or {}).get('full_name'), 'version_count': package['version_count'], 'url': package['html_url']}))
+          except urllib.error.HTTPError as error:
+              response = json.load(error)
+              print(json.dumps({'status': error.code, 'message': response.get('message')}))
+              raise SystemExit(1)
+          PY
