@@ -108,7 +108,7 @@ jobs:
           severity: CRITICAL,HIGH
           scanners: vuln,secret
 
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -133,7 +133,7 @@ jobs:
           jq -n --arg source "$GITHUB_REPOSITORY" --arg sha "$SOURCE_SHA" --arg run "$GITHUB_RUN_ID" --arg attempt "$GITHUB_RUN_ATTEMPT" --arg platform linux/amd64 --arg image "$IMAGE_REPOSITORY@$digest" '{repository:$source,source_sha:$sha,run_id:$run,run_attempt:$attempt,platform:$platform,image:$image}' > receipt.json
           printf 'Source: `%s`\n\nImage: `%s@%s`\n' "$SOURCE_SHA" "$IMAGE_REPOSITORY" "$digest" >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: container-receipt
           path: receipt.json
