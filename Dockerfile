@@ -21,7 +21,7 @@ ENV NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH JPAD_
 COPY . .
 RUN DATABASE_URL=postgresql://build:build@localhost:5432/build NEXTAUTH_SECRET=build-placeholder NEXTAUTH_URL=http://localhost:3000 APP_ENCRYPTION_KEY=build-placeholder REDIS_URL=redis://localhost:6379 bun run build
 
-FROM cgr.dev/chainguard/wolfi-base@sha256:d59fd2d1d21e913b12a8d56064e9aaf61f818289bd18b17132a0c4fde2358cea
+FROM cgr.dev/chainguard/wolfi-base@sha256:580c9ae79c0229cc381475fbfbed0d91fab5d6606e57cd78732f9836de109e90
 WORKDIR /app
 ARG NEXT_PUBLIC_BASE_PATH=""
 ARG JPAD_RELEASE_SHA=""
